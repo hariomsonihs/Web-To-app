@@ -15,30 +15,34 @@ async function triggerGitHubBuild(buildData) {
 
   updateBuild(buildId, { status: 'building', step: 2 })
 
-  // Keep payload small — GitHub has 10KB limit on client_payload
+  // GitHub allows max 10 properties in client_payload
+  // Pack extra fields into a single "config" JSON string
   const payload = {
     event_type: 'build-apk',
     client_payload: {
-      buildId:           String(buildId).substring(0, 36),
-      url:               String(url).substring(0, 500),
-      appName:           String(appName).substring(0, 50),
-      packageName:       String(packageName).substring(0, 100),
-      theme:             String(theme || 'dark'),
-      primaryColor:      String(primaryColor || '#667eea'),
-      permissions:       Array.isArray(permissions) ? permissions.join(',') : 'internet',
-      pushNotifications: String(pushNotifications || 'false'),
-      admob:             String(admob || 'false'),
-      admobAppId:        String(admobAppId || '').substring(0, 100),
-      admobBannerId:     String(admobBannerId || '').substring(0, 100),
-      bottomNavLinks:    JSON.stringify(bottomNavLinks || []).substring(0, 500),
-      customJs:          String(customJs || '').substring(0, 500),
-      buildType:         String(buildType || 'apk'),
-      iconUrl:           String(iconUrl || '').substring(0, 500),
-      splashUrl:         String(splashUrl || '').substring(0, 500),
+      buildId:     String(buildId),
+      url:         String(url),
+      appName:     String(appName),
+      packageName: String(packageName),
+      theme:       String(theme || 'dark'),
+      primaryColor:String(primaryColor || '#667eea'),
+      buildType:   String(buildType || 'apk'),
+      iconUrl:     String(iconUrl || ''),
+      splashUrl:   String(splashUrl || ''),
+      // Pack remaining fields into one JSON string (counts as 1 property)
+      config: JSON.stringify({
+        permissions: Array.isArray(permissions) ? permissions.join(',') : 'internet',
+        pushNotifications: String(pushNotifications || 'false'),
+        admob: String(admob || 'false'),
+        admobAppId: String(admobAppId || ''),
+        admobBannerId: String(admobBannerId || ''),
+        bottomNavLinks: JSON.stringify(bottomNavLinks || []),
+        customJs: String(customJs || '').substring(0, 300),
+      })
     }
   }
 
-  console.log('Triggering GitHub dispatch for repo:', process.env.GITHUB_OWNER + '/' + process.env.GITHUB_REPO)
+  console.log('Triggering GitHub dispatch — payload properties:', Object.keys(payload.client_payload).length)
 
   const response = await axios.post(
     `${GH_API}/repos/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/dispatches`,
@@ -48,7 +52,6 @@ async function triggerGitHubBuild(buildData) {
 
   console.log('GitHub dispatch status:', response.status)
 
-  // Wait then find the triggered run
   await new Promise(r => setTimeout(r, 8000))
   const runId = await findLatestRunId()
   if (runId) {
