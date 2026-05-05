@@ -4,6 +4,9 @@ dist/
 backend/data/
 *.apk
 *.aab
-.gradle/
 android-template/.gradle/
 android-template/app/build/
+build-logs/
+build-logs.zip
+0_build.txt
+build/
