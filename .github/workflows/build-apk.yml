@@ -140,20 +140,29 @@ jobs:
           sed -i "s|// implementation 'com.google.android.gms:play-services-ads:23.0.0'|implementation 'com.google.android.gms:play-services-ads:23.0.0'|" \
             android-template/app/build.gradle
 
-      - name: Grant Gradle execute permission
-        run: chmod +x android-template/gradlew
+      - name: Setup Gradle wrapper
+        run: |
+          cd android-template
+          # Download gradle wrapper jar if missing
+          if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
+            wget -q https://github.com/gradle/gradle/raw/v8.2.0/gradle/wrapper/gradle-wrapper.jar \
+              -O gradle/wrapper/gradle-wrapper.jar || \
+            curl -sL https://raw.githubusercontent.com/gradle/gradle/v8.2.0/gradle/wrapper/gradle-wrapper.jar \
+              -o gradle/wrapper/gradle-wrapper.jar
+          fi
+          chmod +x gradlew
 
       - name: Build APK
         if: ${{ github.event.client_payload.buildType != 'aab' }}
         run: |
           cd android-template
-          ./gradlew assembleRelease --no-daemon --stacktrace
+          ./gradlew assembleRelease --no-daemon --stacktrace 2>&1
 
       - name: Build AAB
         if: ${{ github.event.client_payload.buildType == 'aab' }}
         run: |
           cd android-template
-          ./gradlew bundleRelease --no-daemon --stacktrace
+          ./gradlew bundleRelease --no-daemon --stacktrace 2>&1
 
       - name: Upload APK artifact
         if: ${{ github.event.client_payload.buildType != 'aab' }}
