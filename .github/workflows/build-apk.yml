@@ -44,8 +44,12 @@ jobs:
           PKG="${{ github.event.client_payload.packageName }}"
           OLD_PKG="com.example.webtoapp"
           PKG_PATH="${PKG//.//}"
+          # Replace placeholder AND old package name in all files
+          find android-template -type f \( -name "*.gradle" -o -name "*.xml" -o -name "*.java" \) \
+            -exec sed -i "s|{{PACKAGE_NAME}}|${PKG}|g" {} +
           find android-template -type f \( -name "*.gradle" -o -name "*.xml" -o -name "*.java" \) \
             -exec sed -i "s|${OLD_PKG}|${PKG}|g" {} +
+          # Move Java files to correct package directory
           mkdir -p "android-template/app/src/main/java/${PKG_PATH}"
           cp android-template/app/src/main/java/com/example/webtoapp/*.java \
              "android-template/app/src/main/java/${PKG_PATH}/"
