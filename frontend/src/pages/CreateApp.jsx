@@ -49,7 +49,8 @@ export default function CreateApp() {
       setBuildId(res.data.buildId)
       toast.success('Build started! Tracking progress...')
     } catch (err) {
-      toast.error(err.response?.data?.error || 'Build failed. Check your inputs.')
+      const msg = err.response?.data?.error || err.message || 'Build failed. Check your inputs.'
+      toast.error(msg)
       setBuilding(false)
     }
   }

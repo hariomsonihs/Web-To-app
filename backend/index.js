@@ -14,7 +14,10 @@ const fetchMeta = require('./routes/fetchMeta')
 const app = express()
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 2 * 1024 * 1024 } })
 
-app.use(cors())
+app.use(cors({
+  origin: ['https://web-to-app-snowy.vercel.app', 'http://localhost:5173'],
+  methods: ['GET', 'POST'],
+}))
 app.use(express.json())
 
 // Routes

@@ -17,7 +17,6 @@ export default function Step4Review({ form, onBuild }) {
   if (!form.url) missing.push('Website URL')
   if (!form.appName) missing.push('App Name')
   if (!form.packageName) missing.push('Package Name')
-  if (!form.iconFile) missing.push('App Icon')
 
   return (
     <div className="space-y-6">
