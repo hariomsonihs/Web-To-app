@@ -1,0 +1,172 @@
+name: Build Android APK
+
+on:
+  repository_dispatch:
+    types: [build-apk]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout android template
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Extract build config
+        id: config
+        run: |
+          echo "BUILD_ID=${{ github.event.client_payload.buildId }}" >> $GITHUB_ENV
+          echo "APP_NAME=${{ github.event.client_payload.appName }}" >> $GITHUB_ENV
+          echo "PACKAGE_NAME=${{ github.event.client_payload.packageName }}" >> $GITHUB_ENV
+          echo "WEBSITE_URL=${{ github.event.client_payload.url }}" >> $GITHUB_ENV
+          echo "THEME=${{ github.event.client_payload.theme }}" >> $GITHUB_ENV
+          echo "PRIMARY_COLOR=${{ github.event.client_payload.primaryColor }}" >> $GITHUB_ENV
+          echo "ICON_URL=${{ github.event.client_payload.iconUrl }}" >> $GITHUB_ENV
+          echo "SPLASH_URL=${{ github.event.client_payload.splashUrl }}" >> $GITHUB_ENV
+          echo "CUSTOM_JS=${{ github.event.client_payload.customJs }}" >> $GITHUB_ENV
+          echo "BUILD_TYPE=${{ github.event.client_payload.buildType }}" >> $GITHUB_ENV
+          echo "PUSH_NOTIFICATIONS=${{ github.event.client_payload.pushNotifications }}" >> $GITHUB_ENV
+          echo "ADMOB=${{ github.event.client_payload.admob }}" >> $GITHUB_ENV
+          echo "ADMOB_APP_ID=${{ github.event.client_payload.admobAppId }}" >> $GITHUB_ENV
+          echo "ADMOB_BANNER_ID=${{ github.event.client_payload.admobBannerId }}" >> $GITHUB_ENV
+
+      - name: Replace package name in all files
+        run: |
+          PKG="${{ github.event.client_payload.packageName }}"
+          OLD_PKG="com.example.webtoapp"
+          PKG_PATH="${PKG//.//}"
+          OLD_PATH="com/example/webtoapp"
+
+          # Replace in Gradle and XML files
+          find android-template -type f \( -name "*.gradle" -o -name "*.xml" -o -name "*.java" \) \
+            -exec sed -i "s|${OLD_PKG}|${PKG}|g" {} +
+
+          # Rename Java source directory
+          mkdir -p "android-template/app/src/main/java/${PKG_PATH}"
+          cp android-template/app/src/main/java/${OLD_PATH}/*.java \
+             "android-template/app/src/main/java/${PKG_PATH}/"
+          rm -rf android-template/app/src/main/java/com/example/webtoapp
+
+      - name: Replace app name
+        run: |
+          APP="${{ github.event.client_payload.appName }}"
+          find android-template -type f \( -name "*.xml" -o -name "*.java" \) \
+            -exec sed -i "s|{{APP_NAME}}|${APP}|g" {} +
+
+      - name: Replace website URL
+        run: |
+          URL="${{ github.event.client_payload.url }}"
+          find android-template -type f -name "*.java" \
+            -exec sed -i "s|{{WEBSITE_URL}}|${URL}|g" {} +
+
+      - name: Replace primary color
+        run: |
+          COLOR="${{ github.event.client_payload.primaryColor }}"
+          find android-template -type f -name "*.xml" \
+            -exec sed -i "s|{{PRIMARY_COLOR}}|${COLOR}|g" {} +
+
+      - name: Replace custom JS
+        run: |
+          JS="${{ github.event.client_payload.customJs }}"
+          # Escape for sed
+          JS_ESCAPED=$(printf '%s\n' "$JS" | sed 's/[[\.*^$()+?{|]/\\&/g')
+          find android-template -type f -name "*.java" \
+            -exec sed -i "s|{{CUSTOM_JS}}|${JS_ESCAPED}|g" {} +
+
+      - name: Apply theme
+        run: |
+          THEME="${{ github.event.client_payload.theme }}"
+          if [ "$THEME" = "light" ]; then
+            # Uncomment light theme, comment dark theme
+            sed -i 's/<!-- THEME_LIGHT -->//' android-template/app/src/main/res/values/colors.xml
+            sed -i 's/<!-- END_THEME_LIGHT -->//' android-template/app/src/main/res/values/colors.xml
+            sed -i '/<!-- THEME_DARK -->/,/<!-- END_THEME_DARK -->/s/^/<!--/' android-template/app/src/main/res/values/colors.xml
+          fi
+
+      - name: Remove unused permissions
+        run: |
+          PERMS="${{ github.event.client_payload.permissions }}"
+          for perm in camera storage location notifications; do
+            if [[ "$PERMS" != *"$perm"* ]]; then
+              UPPER=$(echo $perm | tr '[:lower:]' '[:upper:]')
+              sed -i "/<!-- PERMISSION_${UPPER} -->/,/<!-- END_PERMISSION_${UPPER} -->/d" \
+                android-template/app/src/main/AndroidManifest.xml
+            fi
+          done
+
+      - name: Download and replace app icon
+        if: ${{ github.event.client_payload.iconUrl != '' }}
+        run: |
+          ICON_URL="${{ github.event.client_payload.iconUrl }}"
+          for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            wget -q -O "android-template/app/src/main/res/mipmap-${density}/ic_launcher.png" "$ICON_URL" || true
+            cp "android-template/app/src/main/res/mipmap-${density}/ic_launcher.png" \
+               "android-template/app/src/main/res/mipmap-${density}/ic_launcher_round.png" || true
+          done
+
+      - name: Download and replace splash screen
+        if: ${{ github.event.client_payload.splashUrl != '' }}
+        run: |
+          wget -q -O "android-template/app/src/main/res/drawable/splash.png" \
+            "${{ github.event.client_payload.splashUrl }}" || true
+
+      - name: Enable push notifications
+        if: ${{ github.event.client_payload.pushNotifications == 'true' }}
+        run: |
+          # Uncomment Firebase in build.gradle
+          sed -i "s|// id 'com.google.gms.google-services'|id 'com.google.gms.google-services'|" \
+            android-template/app/build.gradle
+          sed -i "s|// implementation platform('com.google.firebase:firebase-bom:32.7.0')|implementation platform('com.google.firebase:firebase-bom:32.7.0')|" \
+            android-template/app/build.gradle
+          sed -i "s|// implementation 'com.google.firebase:firebase-messaging'|implementation 'com.google.firebase:firebase-messaging'|" \
+            android-template/app/build.gradle
+          # Uncomment service in manifest
+          sed -i 's/<!--\n        <service android:name=".MyFirebaseMessagingService"/\n        <service android:name=".MyFirebaseMessagingService"/' \
+            android-template/app/src/main/AndroidManifest.xml || true
+
+      - name: Enable AdMob
+        if: ${{ github.event.client_payload.admob == 'true' }}
+        run: |
+          sed -i "s|// implementation 'com.google.android.gms:play-services-ads:23.0.0'|implementation 'com.google.android.gms:play-services-ads:23.0.0'|" \
+            android-template/app/build.gradle
+
+      - name: Grant Gradle execute permission
+        run: chmod +x android-template/gradlew
+
+      - name: Build APK
+        if: ${{ github.event.client_payload.buildType != 'aab' }}
+        run: |
+          cd android-template
+          ./gradlew assembleRelease --no-daemon --stacktrace
+
+      - name: Build AAB
+        if: ${{ github.event.client_payload.buildType == 'aab' }}
+        run: |
+          cd android-template
+          ./gradlew bundleRelease --no-daemon --stacktrace
+
+      - name: Upload APK artifact
+        if: ${{ github.event.client_payload.buildType != 'aab' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-output
+          path: android-template/app/build/outputs/apk/release/*.apk
+          retention-days: 7
+
+      - name: Upload AAB artifact
+        if: ${{ github.event.client_payload.buildType == 'aab' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: apk-output
+          path: android-template/app/build/outputs/bundle/release/*.aab
+          retention-days: 7
