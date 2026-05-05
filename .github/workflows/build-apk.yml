@@ -24,16 +24,6 @@ jobs:
 
       - name: Parse config
         run: |
-          echo "BUILD_ID=${{ github.event.client_payload.buildId }}" >> $GITHUB_ENV
-          echo "APP_NAME=${{ github.event.client_payload.appName }}" >> $GITHUB_ENV
-          echo "PACKAGE_NAME=${{ github.event.client_payload.packageName }}" >> $GITHUB_ENV
-          echo "WEBSITE_URL=${{ github.event.client_payload.url }}" >> $GITHUB_ENV
-          echo "THEME=${{ github.event.client_payload.theme }}" >> $GITHUB_ENV
-          echo "PRIMARY_COLOR=${{ github.event.client_payload.primaryColor }}" >> $GITHUB_ENV
-          echo "ICON_URL=${{ github.event.client_payload.iconUrl }}" >> $GITHUB_ENV
-          echo "SPLASH_URL=${{ github.event.client_payload.splashUrl }}" >> $GITHUB_ENV
-          echo "BUILD_TYPE=${{ github.event.client_payload.buildType }}" >> $GITHUB_ENV
-          # Parse nested config JSON
           CONFIG='${{ github.event.client_payload.config }}'
           echo "PERMISSIONS=$(echo $CONFIG | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('permissions','internet'))")" >> $GITHUB_ENV
           echo "PUSH_NOTIF=$(echo $CONFIG | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('pushNotifications','false'))")" >> $GITHUB_ENV
@@ -42,14 +32,11 @@ jobs:
       - name: Replace package name
         run: |
           PKG="${{ github.event.client_payload.packageName }}"
-          OLD_PKG="com.example.webtoapp"
           PKG_PATH="${PKG//.//}"
-          # Replace placeholder AND old package name in all files
           find android-template -type f \( -name "*.gradle" -o -name "*.xml" -o -name "*.java" \) \
             -exec sed -i "s|{{PACKAGE_NAME}}|${PKG}|g" {} +
           find android-template -type f \( -name "*.gradle" -o -name "*.xml" -o -name "*.java" \) \
-            -exec sed -i "s|${OLD_PKG}|${PKG}|g" {} +
-          # Move Java files to correct package directory
+            -exec sed -i "s|com\.example\.webtoapp|${PKG}|g" {} +
           mkdir -p "android-template/app/src/main/java/${PKG_PATH}"
           cp android-template/app/src/main/java/com/example/webtoapp/*.java \
              "android-template/app/src/main/java/${PKG_PATH}/"
@@ -80,43 +67,22 @@ jobs:
             fi
           done
 
-      - name: Generate default icons if missing
+      - name: Generate default icons
         run: |
           for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
             DIR="android-template/app/src/main/res/mipmap-${density}"
             mkdir -p "$DIR"
-            if [ ! -f "$DIR/ic_launcher.png" ]; then
-              # Create a simple colored PNG using Python
-              python3 -c "
-import struct, zlib
-def make_png(size, color):
-    def chunk(name, data):
-        c = zlib.crc32(name + data) & 0xffffffff
-        return struct.pack('>I', len(data)) + name + data + struct.pack('>I', c)
-    ihdr = struct.pack('>IIBBBBB', size, size, 8, 2, 0, 0, 0)
-    raw = b''
-    for _ in range(size):
-        row = b'\x00'
-        for _ in range(size):
-            row += bytes(color)
-        raw += row
-    idat = zlib.compress(raw)
-    return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', ihdr) + chunk(b'IDAT', idat) + chunk(b'IEND', b'')
-open('icon.png','wb').write(make_png(192, [102, 126, 234]))
-"
-              cp icon.png "$DIR/ic_launcher.png"
-              cp icon.png "$DIR/ic_launcher_round.png"
-            fi
+            python3 android-template/gen_icon.py "$DIR/ic_launcher.png"
+            cp "$DIR/ic_launcher.png" "$DIR/ic_launcher_round.png"
           done
 
-      - name: Download app icon
+      - name: Download custom icon
         if: ${{ github.event.client_payload.iconUrl != '' }}
         run: |
           for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
-            wget -q -O "android-template/app/src/main/res/mipmap-${density}/ic_launcher.png" \
-              "${{ github.event.client_payload.iconUrl }}" || true
-            cp "android-template/app/src/main/res/mipmap-${density}/ic_launcher.png" \
-               "android-template/app/src/main/res/mipmap-${density}/ic_launcher_round.png" || true
+            DIR="android-template/app/src/main/res/mipmap-${density}"
+            wget -q -O "$DIR/ic_launcher.png" "${{ github.event.client_payload.iconUrl }}" || true
+            cp "$DIR/ic_launcher.png" "$DIR/ic_launcher_round.png" || true
           done
 
       - name: Download splash screen
@@ -125,16 +91,12 @@ open('icon.png','wb').write(make_png(192, [102, 126, 234]))
           wget -q -O "android-template/app/src/main/res/drawable/splash.png" \
             "${{ github.event.client_payload.splashUrl }}" || true
 
-      - name: Setup Gradle wrapper jar
+      - name: Setup Gradle wrapper
         run: |
           cd android-template
           mkdir -p gradle/wrapper
-          # Download official gradle wrapper jar
           wget -q "https://github.com/gradle/gradle/raw/v8.2.0/gradle/wrapper/gradle-wrapper.jar" \
-            -O gradle/wrapper/gradle-wrapper.jar 2>/dev/null || \
-          curl -sL "https://search.maven.org/remotecontent?filepath=org/gradle/gradle-wrapper/8.2/gradle-wrapper-8.2.jar" \
-            -o gradle/wrapper/gradle-wrapper.jar 2>/dev/null || true
-          # Fallback: generate via gradle command
+            -O gradle/wrapper/gradle-wrapper.jar 2>/dev/null || true
           if [ ! -s gradle/wrapper/gradle-wrapper.jar ]; then
             gradle wrapper --gradle-version=8.2 --distribution-type=bin
           fi
