@@ -1,0 +1,22 @@
+﻿2026-05-05T17:44:10.0623531Z ##[group]Run echo "BUILD_ID=1722d3d6-5722-4a75-8c25-a4baf386cbd5" >> $GITHUB_ENV
+2026-05-05T17:44:10.0624142Z [36;1mecho "BUILD_ID=1722d3d6-5722-4a75-8c25-a4baf386cbd5" >> $GITHUB_ENV[0m
+2026-05-05T17:44:10.0624614Z [36;1mecho "APP_NAME=Google" >> $GITHUB_ENV[0m
+2026-05-05T17:44:10.0624956Z [36;1mecho "PACKAGE_NAME=com.google.google" >> $GITHUB_ENV[0m
+2026-05-05T17:44:10.0625337Z [36;1mecho "WEBSITE_URL=https://google.com" >> $GITHUB_ENV[0m
+2026-05-05T17:44:10.0625675Z [36;1mecho "THEME=dark" >> $GITHUB_ENV[0m
+2026-05-05T17:44:10.0625961Z [36;1mecho "PRIMARY_COLOR=#667eea" >> $GITHUB_ENV[0m
+2026-05-05T17:44:10.0626243Z [36;1mecho "ICON_URL=" >> $GITHUB_ENV[0m
+2026-05-05T17:44:10.0626496Z [36;1mecho "SPLASH_URL=" >> $GITHUB_ENV[0m
+2026-05-05T17:44:10.0626760Z [36;1mecho "BUILD_TYPE=apk" >> $GITHUB_ENV[0m
+2026-05-05T17:44:10.0627023Z [36;1m# Parse nested config JSON[0m
+2026-05-05T17:44:10.0627615Z [36;1mCONFIG='{"permissions":"internet","pushNotifications":"false","admob":"false","admobAppId":"","admobBannerId":"","bottomNavLinks":"[]","customJs":""}'[0m
+2026-05-05T17:44:10.0628611Z [36;1mecho "PERMISSIONS=$(echo $CONFIG | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('permissions','internet'))")" >> $GITHUB_ENV[0m
+2026-05-05T17:44:10.0629735Z [36;1mecho "PUSH_NOTIF=$(echo $CONFIG | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('pushNotifications','false'))")" >> $GITHUB_ENV[0m
+2026-05-05T17:44:10.0630581Z [36;1mecho "ADMOB=$(echo $CONFIG | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('admob','false'))")" >> $GITHUB_ENV[0m
+2026-05-05T17:44:10.0656638Z shell: /usr/bin/bash -e {0}
+2026-05-05T17:44:10.0656900Z env:
+2026-05-05T17:44:10.0657186Z   JAVA_HOME: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.18-8/x64
+2026-05-05T17:44:10.0657639Z   JAVA_HOME_17_X64: /opt/hostedtoolcache/Java_Temurin-Hotspot_jdk/17.0.18-8/x64
+2026-05-05T17:44:10.0658007Z   ANDROID_HOME: /usr/local/lib/android/sdk
+2026-05-05T17:44:10.0658270Z   ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+2026-05-05T17:44:10.0658536Z ##[endgroup]
