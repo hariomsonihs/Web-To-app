@@ -1,11 +1,14 @@
 package {{PACKAGE_NAME}};
 
 import android.annotation.SuppressLint;
-import android.content.Intent;
 import android.graphics.Bitmap;
 import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
+import android.net.Network;
+import android.net.NetworkCapabilities;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.View;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -15,6 +18,7 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.LinearLayout;
 import android.widget.ProgressBar;
+import androidx.activity.OnBackPressedCallback;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
 
@@ -26,7 +30,6 @@ public class MainActivity extends AppCompatActivity {
     private SwipeRefreshLayout swipeRefresh;
 
     private static final String WEBSITE_URL = "{{WEBSITE_URL}}";
-    private static final String PRIMARY_COLOR = "{{PRIMARY_COLOR}}";
     private static final String CUSTOM_JS = "{{CUSTOM_JS}}";
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -42,6 +45,7 @@ public class MainActivity extends AppCompatActivity {
 
         setupWebView();
         setupSwipeRefresh();
+        setupBackPress();
 
         if (isConnected()) {
             loadUrl(WEBSITE_URL);
@@ -76,20 +80,23 @@ public class MainActivity extends AppCompatActivity {
             public void onPageStarted(WebView view, String url, Bitmap favicon) {
                 progressBar.setVisibility(View.VISIBLE);
                 errorLayout.setVisibility(View.GONE);
+                webView.setVisibility(View.VISIBLE);
             }
 
             @Override
             public void onPageFinished(WebView view, String url) {
                 progressBar.setVisibility(View.GONE);
                 swipeRefresh.setRefreshing(false);
-                if (!CUSTOM_JS.isEmpty()) {
+                if (CUSTOM_JS != null && !CUSTOM_JS.isEmpty()) {
                     view.evaluateJavascript(CUSTOM_JS, null);
                 }
             }
 
             @Override
             public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
-                if (request.isForMainFrame()) showError();
+                if (request != null && request.isForMainFrame()) {
+                    showError();
+                }
             }
         });
     }
@@ -98,6 +105,7 @@ public class MainActivity extends AppCompatActivity {
         swipeRefresh.setOnRefreshListener(() -> {
             if (isConnected()) {
                 errorLayout.setVisibility(View.GONE);
+                webView.setVisibility(View.VISIBLE);
                 webView.reload();
             } else {
                 swipeRefresh.setRefreshing(false);
@@ -106,32 +114,54 @@ public class MainActivity extends AppCompatActivity {
         });
     }
 
+    private void setupBackPress() {
+        getOnBackPressedDispatcher().addCallback(this, new OnBackPressedCallback(true) {
+            @Override
+            public void handleOnBackPressed() {
+                if (webView.canGoBack()) {
+                    webView.goBack();
+                } else {
+                    finish();
+                }
+            }
+        });
+    }
+
     private void loadUrl(String url) {
         errorLayout.setVisibility(View.GONE);
+        webView.setVisibility(View.VISIBLE);
         webView.loadUrl(url);
     }
 
     private void showError() {
+        progressBar.setVisibility(View.GONE);
         webView.setVisibility(View.GONE);
         errorLayout.setVisibility(View.VISIBLE);
     }
 
     private boolean isConnected() {
         ConnectivityManager cm = (ConnectivityManager) getSystemService(CONNECTIVITY_SERVICE);
-        NetworkInfo info = cm.getActiveNetworkInfo();
-        return info != null && info.isConnected();
+        if (cm == null) return false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Network network = cm.getActiveNetwork();
+            if (network == null) return false;
+            NetworkCapabilities caps = cm.getNetworkCapabilities(network);
+            return caps != null && (
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+            );
+        } else {
+            android.net.NetworkInfo info = cm.getActiveNetworkInfo();
+            return info != null && info.isConnected();
+        }
     }
 
     public void retryConnection(View view) {
         if (isConnected()) {
             webView.setVisibility(View.VISIBLE);
+            errorLayout.setVisibility(View.GONE);
             loadUrl(WEBSITE_URL);
         }
-    }
-
-    @Override
-    public void onBackPressed() {
-        if (webView.canGoBack()) webView.goBack();
-        else super.onBackPressed();
     }
 }

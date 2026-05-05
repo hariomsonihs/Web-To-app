@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId '{{PACKAGE_NAME}}'
-        minSdk 21
+        minSdk 24
         targetSdk 34
         versionCode 1
         versionName "1.0"
@@ -34,6 +34,7 @@ dependencies {
     implementation 'androidx.appcompat:appcompat:1.6.1'
     implementation 'com.google.android.material:material:1.11.0'
     implementation 'androidx.swiperefreshlayout:swiperefreshlayout:1.1.0'
+    implementation 'androidx.activity:activity:1.8.2'
     // Push notifications (uncomment if enabled):
     // implementation platform('com.google.firebase:firebase-bom:32.7.0')
     // implementation 'com.google.firebase:firebase-messaging'
