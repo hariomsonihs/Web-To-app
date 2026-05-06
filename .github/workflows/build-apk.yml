@@ -80,17 +80,39 @@ jobs:
         if: ${{ github.event.client_payload.iconUrl != '' }}
         run: |
           ICON_URL="${{ github.event.client_payload.iconUrl }}"
-          # Download original icon
+          echo "Downloading icon from: $ICON_URL"
+          # Install Pillow first
+          pip install Pillow -q
+          # Download
           wget -q -O /tmp/icon_original "$ICON_URL" || curl -sL "$ICON_URL" -o /tmp/icon_original
-          # Install Pillow for proper image conversion
-          pip install Pillow -q 2>/dev/null || true
-          # Convert to proper PNG for each density
+          # Check file type
+          file /tmp/icon_original
+          ls -la /tmp/icon_original
+          # Convert to valid PNG for each density
           declare -A SIZES=([mdpi]=48 [hdpi]=72 [xhdpi]=96 [xxhdpi]=144 [xxxhdpi]=192)
           for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
             size=${SIZES[$density]}
             DIR="android-template/app/src/main/res/mipmap-${density}"
-            python3 android-template/convert_icon.py /tmp/icon_original "$DIR/ic_launcher.png" $size
+            python3 -c "
+from PIL import Image
+import sys
+try:
+    img = Image.open('/tmp/icon_original').convert('RGBA')
+    img = img.resize(($size, $size), Image.LANCZOS)
+    # Convert to RGB (no alpha for PNG compatibility)
+    bg = Image.new('RGB', img.size, (255,255,255))
+    bg.paste(img, mask=img.split()[3])
+    bg.save('$DIR/ic_launcher.png', 'PNG')
+    print('Saved $DIR/ic_launcher.png')
+except Exception as e:
+    print('Error:', e)
+    # Fallback to default icon
+    from PIL import ImageDraw
+    img = Image.new('RGB', ($size, $size), (102, 126, 234))
+    img.save('$DIR/ic_launcher.png', 'PNG')
+"
             cp "$DIR/ic_launcher.png" "$DIR/ic_launcher_round.png"
+            echo "Done: $DIR/ic_launcher.png"
           done
 
       - name: Download splash screen

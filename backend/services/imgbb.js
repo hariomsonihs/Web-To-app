@@ -11,7 +11,14 @@ async function uploadToImgBB(buffer, name) {
     form,
     { headers: form.getHeaders() }
   )
-  return res.data.data.url
+
+  const data = res.data.data
+  // image.url = direct image file URL (e.g. i.ibb.co/xxx/name.png)
+  // display_url = also direct but may be resized
+  // url = page URL (not what we want)
+  const directUrl = data.image?.url || data.display_url || data.url
+  console.log('ImgBB upload success:', directUrl)
+  return directUrl
 }
 
 module.exports = { uploadToImgBB }
