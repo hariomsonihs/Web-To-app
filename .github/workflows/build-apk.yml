@@ -67,22 +67,6 @@ jobs:
             fi
           done
 
-      - name: Generate default icons
-        run: |
-          # Use ImageMagick (pre-installed on ubuntu-latest) to generate valid PNGs
-          SIZES=(mdpi:48 hdpi:72 xhdpi:96 xxhdpi:144 xxxhdpi:192)
-          for entry in "${SIZES[@]}"; do
-            density="${entry%%:*}"
-            size="${entry##*:}"
-            DIR="android-template/app/src/main/res/mipmap-${density}"
-            mkdir -p "$DIR"
-            convert -size ${size}x${size} xc:'#667eea' \
-              -fill '#8b9ff0' -draw "circle $((size/2)),$((size/2)) $((size/2)),$((size/4))" \
-              "$DIR/ic_launcher.png" 2>/dev/null || \
-            python3 android-template/gen_icon.py "$DIR/ic_launcher.png" $size
-            cp "$DIR/ic_launcher.png" "$DIR/ic_launcher_round.png"
-          done
-
       - name: Download custom icon
         if: ${{ github.event.client_payload.iconUrl != '' }}
         run: |
