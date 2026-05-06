@@ -79,10 +79,18 @@ jobs:
       - name: Download custom icon
         if: ${{ github.event.client_payload.iconUrl != '' }}
         run: |
+          ICON_URL="${{ github.event.client_payload.iconUrl }}"
+          # Download original icon
+          wget -q -O /tmp/icon_original "$ICON_URL" || curl -sL "$ICON_URL" -o /tmp/icon_original
+          # Install Pillow for proper image conversion
+          pip install Pillow -q 2>/dev/null || true
+          # Convert to proper PNG for each density
+          declare -A SIZES=([mdpi]=48 [hdpi]=72 [xhdpi]=96 [xxhdpi]=144 [xxxhdpi]=192)
           for density in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            size=${SIZES[$density]}
             DIR="android-template/app/src/main/res/mipmap-${density}"
-            wget -q -O "$DIR/ic_launcher.png" "${{ github.event.client_payload.iconUrl }}" || true
-            cp "$DIR/ic_launcher.png" "$DIR/ic_launcher_round.png" || true
+            python3 android-template/convert_icon.py /tmp/icon_original "$DIR/ic_launcher.png" $size
+            cp "$DIR/ic_launcher.png" "$DIR/ic_launcher_round.png"
           done
 
       - name: Download splash screen
