@@ -140,7 +140,7 @@ except Exception as e:
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: apk-output
+          name: apk-${{ github.event.client_payload.buildId }}
           path: android-template/app/build/outputs/apk/release/*.apk
           retention-days: 7
           if-no-files-found: warn

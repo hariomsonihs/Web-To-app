@@ -78,7 +78,7 @@ app.get('/api/build-status/:buildId', async (req, res) => {
   // Poll GitHub for status if still building
   if (build.status === 'building' && build.runId) {
     try {
-      const ghStatus = await getBuildStatus(build.runId)
+      const ghStatus = await getBuildStatus(build.runId, build.id)
       if (ghStatus.status === 'completed') {
         const update = { status: ghStatus.conclusion === 'success' ? 'completed' : 'failed', step: 5 }
         if (ghStatus.downloadUrl) update.downloadUrl = ghStatus.downloadUrl
