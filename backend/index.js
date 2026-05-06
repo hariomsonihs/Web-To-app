@@ -95,5 +95,33 @@ app.get('/api/builds', (req, res) => {
   res.json(getBuilds())
 })
 
+// Rebuild existing app
+app.post('/api/rebuild/:buildId', async (req, res) => {
+  const build = getBuild(req.params.buildId)
+  if (!build) return res.status(404).json({ error: 'Build not found' })
+
+  const { versionName } = req.body
+  const newBuildData = { ...build, status: 'pending', step: 0, downloadUrl: null, runId: null, createdAt: new Date().toISOString() }
+  if (versionName) newBuildData.versionName = versionName
+
+  updateBuild(build.id, newBuildData)
+
+  triggerGitHubBuild(newBuildData).catch(err => {
+    console.error('Rebuild trigger failed:', err.message)
+    updateBuild(build.id, { status: 'failed' })
+  })
+
+  res.json({ buildId: build.id, message: 'Rebuild started' })
+})
+
+// Delete build
+app.delete('/api/builds/:buildId', (req, res) => {
+  const builds = getBuilds().filter(b => b.id !== req.params.buildId)
+  const { saveBuild: _, ...db } = require('./services/db')
+  const fs = require('fs'), path = require('path')
+  fs.writeFileSync(path.join(__dirname, 'data/builds.json'), JSON.stringify(builds, null, 2))
+  res.json({ success: true })
+})
+
 const PORT = process.env.PORT || 5000
 app.listen(PORT, () => console.log(`Backend running on port ${PORT}`))
