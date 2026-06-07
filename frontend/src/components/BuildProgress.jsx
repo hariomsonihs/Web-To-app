@@ -31,15 +31,27 @@ export default function BuildProgress({ buildId, onReset }) {
     <div className="max-w-xl mx-auto px-6 py-16 text-center">
       <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="glass-card p-10">
         {status === 'completed' ? (
-          <>
+        <>
             <CheckCircle size={64} className="text-green-400 mx-auto mb-4" />
             <h2 className="text-2xl font-bold mb-2">Build Complete!</h2>
-            <p className="text-slate-400 mb-6">Your APK is ready to download</p>
+            <p className="text-slate-400 mb-4">Your APK is ready to download</p>
+
+            {/* Download instructions */}
+            <div className="glass rounded-xl p-4 mb-6 text-left text-sm">
+              <p className="text-yellow-400 font-semibold mb-2">📥 How to download APK:</p>
+              <ol className="text-slate-300 space-y-1 list-decimal list-inside">
+                <li>Click the button below to open GitHub Actions</li>
+                <li>Scroll down to <strong className="text-white">"Artifacts"</strong> section</li>
+                <li>Click <strong className="text-white">"apk-output"</strong> to download ZIP</li>
+                <li>Extract ZIP → install the <strong className="text-white">.apk</strong> file</li>
+              </ol>
+            </div>
+
             <a href={downloadUrl} target="_blank" rel="noreferrer"
-              className="gradient-bg px-8 py-4 rounded-xl font-bold text-white inline-block hover:opacity-90 transition-opacity">
-              ⬇ Download APK
+              className="gradient-bg px-8 py-4 rounded-xl font-bold text-white inline-block hover:opacity-90 transition-opacity mb-3">
+              🔗 Open GitHub Actions → Download APK
             </a>
-            <button onClick={onReset} className="block mx-auto mt-4 text-slate-400 hover:text-white text-sm">
+            <button onClick={onReset} className="block mx-auto text-slate-400 hover:text-white text-sm">
               Build another app
             </button>
           </>
