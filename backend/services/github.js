@@ -39,9 +39,9 @@ async function triggerGitHubBuild(buildData) {
     }
   }
 
-  // Record time BEFORE dispatch
-  const dispatchedAt = new Date().toISOString()
-  updateBuild(buildId, { dispatchedAt })
+  // Get latest run ID BEFORE dispatch — so we can find the NEW one after
+  const runsBefore = await getLatestRunIds(3)
+  console.log('Runs before dispatch:', runsBefore)
 
   const response = await axios.post(
     `${GH_API}/repos/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/dispatches`,
@@ -50,34 +50,42 @@ async function triggerGitHubBuild(buildData) {
   )
   console.log('Dispatched:', response.status, 'buildId:', buildId)
 
-  // Update step to 3 immediately — don't wait for runId here
-  // runId will be found lazily when frontend polls /api/build-status
-  updateBuild(buildId, { step: 3 })
+  updateBuild(buildId, { step: 3, runsBefore: JSON.stringify(runsBefore) })
+}
+
+async function getLatestRunIds(count) {
+  try {
+    const res = await axios.get(
+      `${GH_API}/repos/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/actions/runs?per_page=${count}&event=repository_dispatch`,
+      { headers: headers() }
+    )
+    return (res.data.workflow_runs || []).map(r => r.id)
+  } catch { return [] }
 }
 
 // Called lazily from build-status polling
 async function findAndUpdateRunId(build) {
-  if (build.runId) return build.runId // already found
-
-  const dispatchedAt = build.dispatchedAt
-  if (!dispatchedAt) return null
+  if (build.runId) return build.runId
 
   try {
+    const runsBefore = JSON.parse(build.runsBefore || '[]')
     const res = await axios.get(
       `${GH_API}/repos/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/actions/runs?per_page=10&event=repository_dispatch`,
       { headers: headers() }
     )
 
-    const afterDate = new Date(dispatchedAt)
     const runs = res.data.workflow_runs || []
+    console.log(`Checking ${runs.length} runs, runsBefore:`, runsBefore)
 
+    // Find a run that did NOT exist before our dispatch
     for (const run of runs) {
-      if (new Date(run.created_at) >= afterDate) {
-        console.log(`Found runId ${run.id} for build ${build.id}`)
+      if (!runsBefore.includes(run.id)) {
+        console.log(`New run found: ${run.id} for build ${build.id}`)
         updateBuild(build.id, { runId: run.id, step: 4 })
         return run.id
       }
     }
+    console.log('No new run yet for build:', build.id)
   } catch (e) {
     console.error('findAndUpdateRunId error:', e.message)
   }
