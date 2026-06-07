@@ -6,7 +6,7 @@ const { v4: uuidv4 } = require('uuid')
 const path = require('path')
 
 const { uploadToImgBB } = require('./services/imgbb')
-const { triggerGitHubBuild, getBuildStatus } = require('./services/github')
+const { triggerGitHubBuild, findAndUpdateRunId, getBuildStatus } = require('./services/github')
 const { saveBuild, getBuilds, getBuild, updateBuild } = require('./services/db')
 const { validateCreateApp } = require('./middleware/validate')
 const fetchMeta = require('./routes/fetchMeta')
@@ -72,23 +72,35 @@ app.post('/api/create-app',
 )
 
 app.get('/api/build-status/:buildId', async (req, res) => {
-  const build = getBuild(req.params.buildId)
+  let build = getBuild(req.params.buildId)
   if (!build) return res.status(404).json({ error: 'Build not found' })
 
-  // Poll GitHub for status if still building
+  // Lazily find runId if not yet set
+  if (build.status === 'building' && !build.runId) {
+    const runId = await findAndUpdateRunId(build)
+    if (runId) build = getBuild(req.params.buildId) // refresh
+  }
+
+  // Poll GitHub for completion status
   if (build.status === 'building' && build.runId) {
     try {
       const ghStatus = await getBuildStatus(build.runId, build.id)
       if (ghStatus.status === 'completed') {
-        const update = { status: ghStatus.conclusion === 'success' ? 'completed' : 'failed', step: 5 }
+        const update = {
+          status: ghStatus.conclusion === 'success' ? 'completed' : 'failed',
+          step: 5
+        }
         if (ghStatus.downloadUrl) update.downloadUrl = ghStatus.downloadUrl
         updateBuild(build.id, update)
         return res.json({ ...build, ...update })
+      } else {
+        // Still running — update step to 4
+        updateBuild(build.id, { step: 4 })
       }
     } catch { /* use cached status */ }
   }
 
-  res.json(build)
+  res.json(getBuild(req.params.buildId))
 })
 
 app.get('/api/builds', (req, res) => {

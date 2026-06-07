@@ -39,63 +39,49 @@ async function triggerGitHubBuild(buildData) {
     }
   }
 
-  // Record time BEFORE dispatch so we can find the exact run
-  const dispatchTime = new Date().toISOString()
+  // Record time BEFORE dispatch
+  const dispatchedAt = new Date().toISOString()
+  updateBuild(buildId, { dispatchedAt })
 
   const response = await axios.post(
     `${GH_API}/repos/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/dispatches`,
     payload,
     { headers: headers() }
   )
-  console.log('GitHub dispatch status:', response.status, 'buildId:', buildId)
+  console.log('Dispatched:', response.status, 'buildId:', buildId)
 
-  // Wait for GitHub to register the run
-  await new Promise(r => setTimeout(r, 10000))
-
-  // Find the run created AFTER our dispatch time — matches this specific build
-  const runId = await findRunByBuildId(buildId, dispatchTime)
-  if (runId) {
-    console.log('Matched run ID:', runId, 'for buildId:', buildId)
-    updateBuild(buildId, { runId, step: 3 })
-  } else {
-    console.warn('Could not find run for buildId:', buildId)
-  }
+  // Update step to 3 immediately — don't wait for runId here
+  // runId will be found lazily when frontend polls /api/build-status
+  updateBuild(buildId, { step: 3 })
 }
 
-async function findRunByBuildId(buildId, afterTime) {
+// Called lazily from build-status polling
+async function findAndUpdateRunId(build) {
+  if (build.runId) return build.runId // already found
+
+  const dispatchedAt = build.dispatchedAt
+  if (!dispatchedAt) return null
+
   try {
-    // Retry a few times — GitHub may take a moment to list the run
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const res = await axios.get(
-        `${GH_API}/repos/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/actions/runs?per_page=10&event=repository_dispatch`,
-        { headers: headers() }
-      )
+    const res = await axios.get(
+      `${GH_API}/repos/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/actions/runs?per_page=10&event=repository_dispatch`,
+      { headers: headers() }
+    )
 
-      const runs = res.data.workflow_runs || []
-      const afterDate = new Date(afterTime)
+    const afterDate = new Date(dispatchedAt)
+    const runs = res.data.workflow_runs || []
 
-      // Find run created after our dispatch AND whose name contains buildId
-      // GitHub sets run name from the event display_title
-      for (const run of runs) {
-        const runDate = new Date(run.created_at)
-        if (runDate >= afterDate) {
-          // This run was created after our dispatch — it's ours
-          // (works correctly even with concurrent builds since we check time)
-          console.log(`Found run: ${run.id} created at ${run.created_at}`)
-          return run.id
-        }
-      }
-
-      if (attempt < 4) {
-        console.log(`Attempt ${attempt + 1}: run not found yet, waiting...`)
-        await new Promise(r => setTimeout(r, 5000))
+    for (const run of runs) {
+      if (new Date(run.created_at) >= afterDate) {
+        console.log(`Found runId ${run.id} for build ${build.id}`)
+        updateBuild(build.id, { runId: run.id, step: 4 })
+        return run.id
       }
     }
-    return null
   } catch (e) {
-    console.error('findRunByBuildId error:', e.message)
-    return null
+    console.error('findAndUpdateRunId error:', e.message)
   }
+  return null
 }
 
 async function getBuildStatus(runId, buildId) {
@@ -112,10 +98,10 @@ async function getBuildStatus(runId, buildId) {
       `${GH_API}/repos/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/actions/runs/${runId}/artifacts`,
       { headers: headers() }
     )
-    const apk = artRes.data.artifacts?.find(a => a.name === `apk-${buildId}`) ||
-                  artRes.data.artifacts?.find(a => a.name?.startsWith('apk-'))
+    const apk = artRes.data.artifacts?.find(a =>
+      a.name === `apk-${buildId}` || a.name?.startsWith('apk-')
+    )
     if (apk) {
-      // Direct artifact download link
       downloadUrl = `https://github.com/${process.env.GITHUB_OWNER}/${process.env.GITHUB_REPO}/actions/runs/${runId}/artifacts/${apk.id}`
     }
   } catch { }
@@ -123,4 +109,4 @@ async function getBuildStatus(runId, buildId) {
   return { status: 'completed', conclusion: run.conclusion, downloadUrl }
 }
 
-module.exports = { triggerGitHubBuild, getBuildStatus }
+module.exports = { triggerGitHubBuild, findAndUpdateRunId, getBuildStatus }
